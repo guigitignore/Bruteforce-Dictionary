@@ -109,6 +109,10 @@ void dictionaryClose(dictionary* d){
     free(d);
 }
 
+unsigned dictionaryGetSize(dictionary* d){
+    return d->header.elements;
+}
+
 uint32_t dictionaryHash(void* data,size_t s){
     void* end_data=data+s;
     uint32_t hash=0;
