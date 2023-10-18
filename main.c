@@ -9,6 +9,7 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     char buffer[256];
     size_t len;
     md5 hash;
+    int i=0;
 
     FILE* finput=fopen(inputfile,"r");
     
@@ -23,8 +24,14 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
 
         hashMD5(buffer,len,&hash);
 
-        dictionaryAdd(d,&hash,sizeof(md5),buffer,len);
+        dictionaryWrite(d,&hash,sizeof(md5),buffer,len);
+
+        i++;
+        if (!(i%1000000)) printf("Writing %d passwords\n",i);
     }
+
+    printf("Generating hash table\n");
+    dictionaryGenerateHashTable(d);
 
     
     printf("hash %d passwords\n",dictionaryGetSize(d));

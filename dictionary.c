@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <stdbool.h>
+#include <pthread.h>
 #include <string.h>
 #include "dictionary.h"
 
@@ -22,15 +22,15 @@ typedef struct{
 }dictionary_hash_table_entry;
 
 typedef struct{
-    uint16_t key_size;
-    uint16_t value_size;
+    uint8_t key_size;
+    uint8_t value_size;
 }dictionary_data_entry;
 
 typedef struct{
     FILE* file;
     dictionary_hash_table_entry* hash_table;
-    void* buffer;
     uint32_t hash_table_size;
+    pthread_mutex_t mutex;
 }dictionary_runtime_properties;
 
 struct dictionary{
@@ -63,12 +63,13 @@ void dictionaryInitFile(dictionary* d){
 
     d->runtime.hash_table_size=dictionaryGetHashTableSize(d);
     d->runtime.hash_table=calloc(d->runtime.hash_table_size,1);
+    
     //write new header
     //printf("writing new header\n");
 }
 
 dictionary* dictionaryOpen(char* filename){
-    bool is_already_created=!access(filename,F_OK);
+    int is_already_created=!access(filename,F_OK);
 
     dictionary* d=malloc(sizeof(dictionary));
 
@@ -94,7 +95,7 @@ dictionary* dictionaryOpen(char* filename){
         dictionaryInitFile(d);
     }
 
-    d->runtime.buffer=malloc(0xFFFF);
+    pthread_mutex_init(&d->runtime.mutex,NULL);
 
     return d;
 } 
@@ -105,9 +106,9 @@ void dictionaryClose(dictionary* d){
     dictionaryWriteHeader(d);
     dictionaryWriteHashTable(d);
 
+    pthread_mutex_destroy(&d->runtime.mutex);
     fclose(d->runtime.file);
     free(d->runtime.hash_table);
-    free(d->runtime.buffer);
     free(d);
 }
 
@@ -184,7 +185,7 @@ void dictionaryWrite(dictionary* d,void* key,unsigned key_size,void* data,unsign
     d->header.elements++;
 }
 
-static uint8_t log2(uint32_t value){
+static uint8_t dictionaryLog2(uint32_t value){
     uint32_t result=0xFF;
 
     while (value){
@@ -196,9 +197,31 @@ static uint8_t log2(uint32_t value){
 }
 
 void dictionaryGenerateHashTable(dictionary* d){
-    uint32_t hash_table_len=(1<<log2((d->header.elements*3)>>1))-1;
+    dictionary_data_entry de;
+    dictionary_hash_table_entry hte;
+    char buffer[256];
 
+    uint32_t hash_table_len=1<<(dictionaryLog2((d->header.elements*3)>>1)+1);
+    printf("Hash table len=%u\n",hash_table_len);
 
+    free(d->runtime.hash_table);
+    d->runtime.hash_table=calloc(hash_table_len,sizeof(dictionary_hash_table_entry));
+    d->header.mask=hash_table_len-1;
+    d->runtime.hash_table_size=hash_table_len*sizeof(dictionary_hash_table_entry);
+
+    fseek(d->runtime.file,sizeof(dictionary_file_header),SEEK_SET);
+
+    for (uint32_t i=0;i<d->header.elements;i++){
+        hte.index=ftell(d->runtime.file);
+
+        fread(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
+        fread(buffer,de.key_size,1,d->runtime.file);
+        fseek(d->runtime.file,de.value_size,SEEK_CUR);
+
+        hte.hash=dictionaryHash(buffer,de.key_size);
+        if (i%1000000==0) printf("%d filled\n",i);
+        dictionaryHashTableInsert(d->runtime.hash_table,hte,d->header.mask);
+    }
 }
 
 void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigned data_size){
@@ -207,10 +230,12 @@ void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigne
     uint32_t perturb;
     dictionary_hash_table_entry* hte;
     dictionary_data_entry de;
+    char buffer[256];
 
     if ((float)d->header.elements/d->header.mask>0.66){
-        printf("resize hash table size=%d\n",d->header.elements);
+        printf("before resize hash table size=%d\n",d->header.elements);
         dictionaryExtendHashTable(d,1);
+        printf("after resize hash table size=%d\n",d->header.elements);
     }
 
     hash=dictionaryHash(key,key_size);
@@ -225,9 +250,9 @@ void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigne
             fseek(d->runtime.file,hte->index,SEEK_SET);
             fread(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
 
-            fread(d->runtime.buffer, de.key_size,1,d->runtime.file);
+            fread(buffer, de.key_size,1,d->runtime.file);
 
-            if (key_size==de.key_size && !memcmp(d->runtime.buffer,key,key_size)){
+            if (key_size==de.key_size && !memcmp(buffer,key,key_size)){
                 //printf("key already exist in file\n");
                 //we can use the same memory space to overwrite value
                 if (data_size<=de.value_size){
@@ -260,6 +285,7 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
     uint32_t perturb;
     dictionary_hash_table_entry* hte;
     dictionary_data_entry de;
+    char buffer[256];
 
     hash=dictionaryHash(key,key_size);
     index=hash&d->header.mask;
@@ -273,10 +299,10 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
             fseek(d->runtime.file,hte->index,SEEK_SET);
             fread(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
 
-            fread(d->runtime.buffer, de.key_size,1,d->runtime.file);
+            fread(buffer, de.key_size,1,d->runtime.file);
 
 
-            if (key_size==de.key_size && !memcmp(d->runtime.buffer,key,key_size)){
+            if (key_size==de.key_size && !memcmp(buffer,key,key_size)){
                 if (data){
                     *data=malloc(de.value_size);
                     fread(*data,de.value_size,1,d->runtime.file);
