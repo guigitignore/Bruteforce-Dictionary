@@ -27,7 +27,7 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     }
 
     
-    printf("hash %d password",dictionaryGetSize(d));
+    printf("hash %d passwords\n",dictionaryGetSize(d));
     fclose(finput);
     return d;
 }

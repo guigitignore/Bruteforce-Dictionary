@@ -42,6 +42,8 @@ struct dictionary{
 void dictionaryWriteHashTable(dictionary* d){
     fseek(d->runtime.file,d->header.hash_table_index,SEEK_SET);
     fwrite(d->runtime.hash_table,d->runtime.hash_table_size,1,d->runtime.file);
+    //truncate file to not waste disk space.
+    ftruncate(fileno(d->runtime.file),d->header.hash_table_index+d->runtime.hash_table_size+1);
 }
 
 void dictionaryWriteHeader(dictionary* d){
@@ -125,11 +127,27 @@ uint32_t dictionaryHash(void* data,size_t s){
     return hash;
 }
 
-void dictionaryResizeHashTable(dictionary* d,uint8_t bits){
-    uint32_t index;
-    uint32_t perturb;
+void dictionaryHashTableInsert(dictionary_hash_table_entry* hash_table,dictionary_hash_table_entry elt,uint32_t mask){
+    uint32_t perturb=elt.hash;
+    uint32_t index=elt.hash&mask;
     dictionary_hash_table_entry* hte;
 
+    while(1){
+        hte=hash_table+index;
+        if (!hte->index) break;
+
+        perturb>>=DICTIONNARY_PERTURB_SHIFT;
+        index*=5;
+        index++;
+        index+=perturb;
+        index&=mask;
+    }
+
+    hte->hash=elt.hash;
+    hte->index=elt.index;
+}
+
+void dictionaryExtendHashTable(dictionary* d,uint8_t bits){
     dictionary_hash_table_entry *start_old_table=d->runtime.hash_table;
     dictionary_hash_table_entry* end_old_table=start_old_table+d->header.mask;
 
@@ -142,28 +160,45 @@ void dictionaryResizeHashTable(dictionary* d,uint8_t bits){
 
     while (start_old_table<=end_old_table){
         if (start_old_table->index){
-            perturb=start_old_table->hash;
-            index=start_old_table->hash&d->header.mask;
-
-            while(1){
-                hte=new_table+index;
-                if (!hte->index) break;
-
-                perturb>>=DICTIONNARY_PERTURB_SHIFT;
-                index*=5;
-                index++;
-                index+=perturb;
-                index&=d->header.mask;
-            }
-
-            hte->hash=start_old_table->hash;
-            hte->index=start_old_table->index;
+            dictionaryHashTableInsert(new_table,*start_old_table,d->header.mask);
         }
         start_old_table++;
     }
 
     free(d->runtime.hash_table);
     d->runtime.hash_table=new_table;
+}
+
+void dictionaryWrite(dictionary* d,void* key,unsigned key_size,void* data,unsigned data_size){
+    dictionary_data_entry de;
+
+    de.key_size=key_size;
+    de.value_size=data_size;
+
+    fseek(d->runtime.file,d->header.hash_table_index,SEEK_SET);
+    fwrite(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
+    fwrite(key,key_size,1,d->runtime.file);
+    fwrite(data,data_size,1,d->runtime.file);
+
+    d->header.hash_table_index+=sizeof(dictionary_data_entry)+key_size+data_size;
+    d->header.elements++;
+}
+
+static uint8_t log2(uint32_t value){
+    uint32_t result=0xFF;
+
+    while (value){
+        value>>=1;
+        result++;
+    }
+
+    return result;
+}
+
+void dictionaryGenerateHashTable(dictionary* d){
+    uint32_t hash_table_len=(1<<log2((d->header.elements*3)>>1))-1;
+
+
 }
 
 void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigned data_size){
@@ -175,7 +210,7 @@ void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigne
 
     if ((float)d->header.elements/d->header.mask>0.66){
         printf("resize hash table size=%d\n",d->header.elements);
-        dictionaryResizeHashTable(d,1);
+        dictionaryExtendHashTable(d,1);
     }
 
     hash=dictionaryHash(key,key_size);
@@ -216,17 +251,7 @@ void dictionaryAdd(dictionary* d,void* key,unsigned key_size, void* data,unsigne
     hte->hash=hash;
     hte->index=d->header.hash_table_index;
 
-    fseek(d->runtime.file,hte->index,SEEK_SET);
-
-    de.key_size=key_size;
-    de.value_size=data_size;
-
-    fwrite(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
-    fwrite(key,key_size,1,d->runtime.file);
-    fwrite(data,data_size,1,d->runtime.file);
-
-    d->header.hash_table_index+=sizeof(dictionary_data_entry)+key_size+data_size;
-    d->header.elements++;
+    dictionaryWrite(d,key,key_size,data,data_size);
 }
 
 void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigned* data_size){
