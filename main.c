@@ -51,7 +51,7 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     
     if (!finput) return NULL;
 
-    dictionary* d=dictionaryOpen(outputfile);
+    dictionary* d=dictionaryNew(outputfile);
     dictionary_generation_thread dgt;
 
     dgt.dict=d;
@@ -67,8 +67,6 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     }
     
 
-    printf("Generating hash table\n");
-    //dictionaryGenerateHashTable(d);
     pthread_mutex_destroy(&dgt.mutex);
     
     printf("hash %d passwords\n",dictionaryGetSize(d));
@@ -105,7 +103,7 @@ int main(int argc,char* argv[]){
         if (!strcmp("-L",argv[1])){
             inputfile=argv[2];
 
-            d=dictionaryOpen(inputfile);
+            d=dictionaryOpenExisting(inputfile);
 
             fgets(buffer,256,stdin);
             md5 h;
@@ -118,6 +116,7 @@ int main(int argc,char* argv[]){
             dictionaryClose(d);
         }
     }
+
 
     return EXIT_SUCCESS;
 }
