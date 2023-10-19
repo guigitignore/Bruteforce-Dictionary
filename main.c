@@ -6,7 +6,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#define GENERATION_THREAD_NUMBER 4
+#define GENERATION_THREAD_NUMBER 8
 
 typedef struct{
     FILE* file;
@@ -35,7 +35,7 @@ void dictionaryGenerateFileThread(dictionary_generation_thread* dgt){
 
         hashMD5(buffer,len,&hash);
 
-        dictionaryWrite(dgt->dict,&hash,sizeof(md5),buffer,len);
+        dictionarySafeWrite(dgt->dict,&hash,sizeof(md5),buffer,len);
 
         //len=dictionaryGetSize(dgt->dict);
         //if (!(len%1000000)) printf("Writing %ld passwords\n",len);
@@ -68,7 +68,7 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     
 
     printf("Generating hash table\n");
-    dictionaryGenerateHashTable(d);
+    //dictionaryGenerateHashTable(d);
     pthread_mutex_destroy(&dgt.mutex);
     
     printf("hash %d passwords\n",dictionaryGetSize(d));
