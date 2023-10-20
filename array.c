@@ -70,6 +70,7 @@ void arrayFree(array* a){
 }
 
 void arrayForEach(array* a,void (*callback)(void* elt,void* userdata),void* userdata){
+    pthread_mutex_lock(&a->mutex);
     unsigned elt_size=a->elt_size;
     void* base_ptr=a->base_ptr;
     void* end_ptr=a->current_ptr;
@@ -78,4 +79,5 @@ void arrayForEach(array* a,void (*callback)(void* elt,void* userdata),void* user
         callback(base_ptr,userdata);
         base_ptr+=elt_size;
     }
+    pthread_mutex_unlock(&a->mutex);
 }

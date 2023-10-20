@@ -5,5 +5,5 @@ CFLAGS=-Wall -g
 LDFLAGS=$(shell pkg-config --libs openssl) -lpthread
 
 all:
-	@$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LDFLAGS)
+	@$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LDFLAGS) -O5
 	@./$(OUT)

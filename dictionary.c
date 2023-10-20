@@ -162,26 +162,47 @@ void dictionaryHashTableInsert(dictionary* d,dictionary_hash_table_entry elt){
     hte->index=elt.index;
 }
 
-void dictionaryExtendHashTable(dictionary* d,uint8_t bits){
-    dictionary_hash_table_entry *old_hash_table=d->hash_table;
-    dictionary_hash_table_entry* end_old_table=old_hash_table+d->header.mask;
+static uint8_t dictionaryLog2(uint32_t value){
+    uint32_t result=0xFF;
 
-    d->header.mask++;
-    d->header.mask<<=bits;
-    
-
-    d->hash_table=calloc(d->header.mask,sizeof(dictionary_hash_table_entry));
-    d->header.mask--;
-
-
-    while (end_old_table>=old_hash_table){
-        if (end_old_table->index){
-            dictionaryHashTableInsert(d,*end_old_table);
-        }
-        end_old_table--;
+    while (value){
+        value>>=1;
+        result++;
     }
 
-    free(old_hash_table);
+    return result;
+}
+
+static void dictionaryGenerateHashTableCallback(void* hte,void* dict){
+    dictionaryHashTableInsert(dict,*(dictionary_hash_table_entry*)hte);
+}
+
+void dictionaryGenerateHashTable(dictionary* d){
+    dictionary_hash_table_entry *old_table,*end_old_table;
+    
+    uint32_t hash_table_len=1<<(dictionaryLog2((d->header.elements*3)>>1)+1);
+    uint32_t hash_table_mask=hash_table_len-1;
+
+    pthread_mutex_lock(&d->hash_table_mutex);
+    if (d->header.mask<hash_table_mask){
+        old_table=d->hash_table;
+        end_old_table=old_table+d->header.mask;
+
+        d->hash_table=calloc(hash_table_len,sizeof(dictionary_hash_table_entry));
+        d->header.mask=hash_table_mask;
+        
+        while (end_old_table>=old_table){
+            if (end_old_table->index) dictionaryHashTableInsert(d,*end_old_table);
+            end_old_table--;
+        }
+
+        free(old_table);
+    }
+    
+    
+    arrayForEach(d->hash_table_cache,dictionaryGenerateHashTableCallback,d);
+    pthread_mutex_unlock(&d->hash_table_mutex);
+    arrayClear(d->hash_table_cache); 
 }
 
 

@@ -66,10 +66,11 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
         pthread_join(threads[i],NULL);
     }
     
-
+    
     pthread_mutex_destroy(&dgt.mutex);
     
     printf("hash %d passwords\n",dictionaryGetSize(d));
+    dictionaryGenerateHashTable(d);
     fclose(finput);
     return d;
 }

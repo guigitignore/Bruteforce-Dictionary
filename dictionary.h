@@ -13,6 +13,8 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
 
 void dictionarySafeWrite(dictionary* d,void* key,unsigned key_size,void* data,unsigned data_size);
 
+void dictionaryGenerateHashTable(dictionary* d);
+
 unsigned dictionaryGetSize(dictionary* d);
 
 #endif
