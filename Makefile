@@ -1,5 +1,5 @@
 CC=gcc
-SRC=main.c dictionary.c hash.c parser.c
+SRC=main.c dictionary.c hash.c parser.c array.c
 OUT=main
 CFLAGS=-Wall -g
 LDFLAGS=$(shell pkg-config --libs openssl) -lpthread

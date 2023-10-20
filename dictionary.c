@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <string.h>
 #include "dictionary.h"
+#include "array.h"
 
 #define DICTIONARY_MAGIC 0x11223344
 #define DICTIONNARY_PERTURB_SHIFT 5
@@ -26,26 +27,26 @@ typedef struct{
     uint8_t value_size;
 }dictionary_data_entry;
 
-typedef struct{
-    FILE* file;
-    dictionary_hash_table_entry* hash_table;
-    pthread_mutex_t file_mutex;
-    pthread_mutex_t hash_table_mutex;
-}dictionary_runtime_properties;
 
 struct dictionary{
     dictionary_file_header header;
-    dictionary_runtime_properties runtime;
+
+    FILE* file;
+    dictionary_hash_table_entry* hash_table;
+    array* hash_table_cache;
+    pthread_mutex_t file_mutex;
+    pthread_mutex_t hash_table_mutex;
+    unsigned initial_size;
 };
 
 void dictionaryGoToIndex(dictionary* d,uint32_t index){
-    if (ftell(d->runtime.file)!=index) fseek(d->runtime.file,index,SEEK_SET);
+    if (ftell(d->file)!=index) fseek(d->file,index,SEEK_SET);
 }
 
 
 void dictionaryInitMutex(dictionary* d){
-    pthread_mutex_init(&d->runtime.file_mutex,NULL);
-    pthread_mutex_init(&d->runtime.hash_table_mutex,NULL);
+    pthread_mutex_init(&d->file_mutex,NULL);
+    pthread_mutex_init(&d->hash_table_mutex,NULL);
 }
 
 dictionary* dictionaryNew(char* filename){
@@ -54,14 +55,16 @@ dictionary* dictionaryNew(char* filename){
     if (!f) return NULL;
 
     dictionary* d=malloc(sizeof(dictionary));
-    d->runtime.file=f;
+    d->file=f;
     
     d->header.magic=DICTIONARY_MAGIC;
     d->header.elements=0;
+    d->initial_size=0;
     d->header.hash_table_index=sizeof(dictionary_file_header);
     d->header.mask=0xF;
 
-    d->runtime.hash_table=calloc(d->header.mask+1,sizeof(dictionary_hash_table_entry));
+    d->hash_table=calloc(d->header.mask+1,sizeof(dictionary_hash_table_entry));
+    d->hash_table_cache=arrayNew(sizeof(dictionary_hash_table_entry));
 
     dictionaryInitMutex(d);
 
@@ -82,11 +85,13 @@ dictionary* dictionaryOpenExisting(char* filename){
         return NULL;
     }
 
-    d->runtime.file=f;
-    d->runtime.hash_table=malloc((d->header.mask+1)*sizeof(dictionary_hash_table_entry));
+    d->file=f;
+    d->hash_table=malloc((d->header.mask+1)*sizeof(dictionary_hash_table_entry));
+    d->hash_table_cache=arrayNew(sizeof(dictionary_hash_table_entry));
+    d->initial_size=d->header.elements;
         
     dictionaryGoToIndex(d,d->header.hash_table_index);
-    fread(d->runtime.hash_table,sizeof(dictionary_hash_table_entry),d->header.mask+1,d->runtime.file); 
+    fread(d->hash_table,sizeof(dictionary_hash_table_entry),d->header.mask+1,d->file); 
 
     dictionaryInitMutex(d);
 
@@ -97,19 +102,24 @@ dictionary* dictionaryOpenExisting(char* filename){
 void dictionaryClose(dictionary* d){
     if (!d) return;
 
-    rewind(d->runtime.file);
-    fwrite(&d->header,sizeof(dictionary_file_header),1,d->runtime.file);
+    if (d->initial_size!=d->header.elements){
+        rewind(d->file);
+        fwrite(&d->header,sizeof(dictionary_file_header),1,d->file);
 
-    dictionaryGoToIndex(d,d->header.hash_table_index);
-    fwrite(d->runtime.hash_table,sizeof(dictionary_hash_table_entry),d->header.mask+1,d->runtime.file);
-    //truncate file to not waste disk space.
-    //ftruncate(fileno(d->runtime.file),ftell(d->runtime.file)+1);
+        dictionaryGoToIndex(d,d->header.hash_table_index);
+        fwrite(d->hash_table,sizeof(dictionary_hash_table_entry),d->header.mask+1,d->file);
 
-    pthread_mutex_destroy(&d->runtime.file_mutex);
-    pthread_mutex_destroy(&d->runtime.hash_table_mutex);
+        //truncate file to not waste disk space.
+        ftruncate(fileno(d->file),ftell(d->file)+1);
+    }
+     
 
-    fclose(d->runtime.file);
-    free(d->runtime.hash_table);
+    pthread_mutex_destroy(&d->file_mutex);
+    pthread_mutex_destroy(&d->hash_table_mutex);
+
+    fclose(d->file);
+    free(d->hash_table);
+    arrayFree(d->hash_table_cache);
     free(d);
 }
 
@@ -137,7 +147,7 @@ void dictionaryHashTableInsert(dictionary* d,dictionary_hash_table_entry elt){
 
     while(1){
         index&=mask;
-        hte=d->runtime.hash_table+index;
+        hte=d->hash_table+index;
 
         if (!hte->index) break;
 
@@ -153,14 +163,14 @@ void dictionaryHashTableInsert(dictionary* d,dictionary_hash_table_entry elt){
 }
 
 void dictionaryExtendHashTable(dictionary* d,uint8_t bits){
-    dictionary_hash_table_entry *old_hash_table=d->runtime.hash_table;
+    dictionary_hash_table_entry *old_hash_table=d->hash_table;
     dictionary_hash_table_entry* end_old_table=old_hash_table+d->header.mask;
 
     d->header.mask++;
     d->header.mask<<=bits;
     
 
-    d->runtime.hash_table=calloc(d->header.mask,sizeof(dictionary_hash_table_entry));
+    d->hash_table=calloc(d->header.mask,sizeof(dictionary_hash_table_entry));
     d->header.mask--;
 
 
@@ -187,30 +197,25 @@ void dictionaryWrite(dictionary* d,void* key,unsigned key_size,void* data,unsign
     de.value_size=data_size;
     
     dictionaryGoToIndex(d,hash_table_index);
-    fwrite(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
-    fwrite(key,key_size,1,d->runtime.file);
-    fwrite(data,data_size,1,d->runtime.file);
+    fwrite(&de,sizeof(dictionary_data_entry),1,d->file);
+    fwrite(key,key_size,1,d->file);
+    fwrite(data,data_size,1,d->file);
 }
 
 //thread safe
 void dictionarySafeWrite(dictionary* d,void* key,unsigned key_size,void* data,unsigned data_size){
     dictionary_hash_table_entry hte;
 
-    pthread_mutex_lock(&d->runtime.file_mutex);
+    pthread_mutex_lock(&d->file_mutex);
     hte.index=d->header.hash_table_index;
     dictionaryWrite(d,key,key_size,data,data_size);
-    pthread_mutex_unlock(&d->runtime.file_mutex);
+    pthread_mutex_unlock(&d->file_mutex);
 
     hte.hash=dictionaryHash(key,key_size);
 
-    pthread_mutex_lock(&d->runtime.hash_table_mutex);
-    if ((float)d->header.elements/d->header.mask>0.66){
-        printf("before resize hash table size=%d\n",d->header.elements);
-        dictionaryExtendHashTable(d,1);
-        printf("after resize hash table size=%d\n",d->header.elements);
-    }
-    dictionaryHashTableInsert(d,hte);
-    pthread_mutex_unlock(&d->runtime.hash_table_mutex);
+    //pthread_mutex_lock(&d->hash_table_mutex);
+    arrayPush(d->hash_table_cache,&hte);
+    //pthread_mutex_unlock(&d->hash_table_mutex);
 
 }
 
@@ -228,30 +233,30 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
     perturb=hash;
     
     while(1){
-        pthread_mutex_lock(&d->runtime.hash_table_mutex);
+        pthread_mutex_lock(&d->hash_table_mutex);
         index&=d->header.mask;
-        hte=d->runtime.hash_table[index];
-        pthread_mutex_unlock(&d->runtime.hash_table_mutex);
+        hte=d->hash_table[index];
+        pthread_mutex_unlock(&d->hash_table_mutex);
         if (!hte.index) break;
 
         if (hte.hash==hash){
-            pthread_mutex_lock(&d->runtime.file_mutex);
+            pthread_mutex_lock(&d->file_mutex);
             dictionaryGoToIndex(d,hte.index);
-            fread(&de,sizeof(dictionary_data_entry),1,d->runtime.file);
+            fread(&de,sizeof(dictionary_data_entry),1,d->file);
 
-            fread(buffer, de.key_size,1,d->runtime.file);
+            fread(buffer, de.key_size,1,d->file);
             
 
             if (key_size==de.key_size && !memcmp(buffer,key,key_size)){
                 if (data){
                     *data=malloc(de.value_size);
-                    fread(*data,de.value_size,1,d->runtime.file);
+                    fread(*data,de.value_size,1,d->file);
                 }
                 if (data_size) *data_size=de.value_size;
-                pthread_mutex_unlock(&d->runtime.file_mutex);
+                pthread_mutex_unlock(&d->file_mutex);
                 return;
             }
-            pthread_mutex_unlock(&d->runtime.file_mutex);
+            pthread_mutex_unlock(&d->file_mutex);
 
         }
 
