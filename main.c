@@ -34,19 +34,12 @@ void dictionaryGenerateFileThread(dictionary_generation_thread* dgt){
         else len++;
 
         hashMD5(buffer,len,&hash);
-
         dictionarySafeWrite(dgt->dict,&hash,sizeof(md5),buffer,len);
-
-        //len=dictionaryGetSize(dgt->dict);
-        //if (!(len%1000000)) printf("Writing %ld passwords\n",len);
-
     }
 }
 
 dictionary* generateDictFile(char* inputfile,char* outputfile){
-
     pthread_t threads[GENERATION_THREAD_NUMBER];
-
     FILE* finput=fopen(inputfile,"r");
     
     if (!finput) return NULL;
@@ -75,11 +68,80 @@ dictionary* generateDictFile(char* inputfile,char* outputfile){
     return d;
 }
 
+dictionary* readFromDictFile(char* dictfilename,char* inputfile){
+    FILE* f;
+    dictionary* d;
+    char buffer[256];
+    char hash[32];
+    size_t len;
+    char* result;
+
+    if (inputfile){
+        f=fopen(inputfile,"r");
+        if (!f) return NULL;
+    }else{
+        f=stdin;
+    }
+
+    d=dictionaryOpenExisting(dictfilename);
+
+    while (fgets(buffer,256,f)){
+        len=strlen(buffer)-1;
+        if (buffer[len]=='\n') buffer[len]='\0';
+        else len++;
+
+        len>>=1;
+        parseHexa(buffer,hash,len);
+
+        dictionaryGet(d,hash,len,(void**)&result,NULL);
+        if (result){
+            printf("%s\n",result);
+            free(result);
+        }else{
+            printf("<unknown>\n");
+        }
+    }
+
+    fclose(f);
+
+    return d;
+}
+
+void exportDictKeysCallback(void* key,unsigned key_len,void* value,unsigned value_len,void* stream){
+    for (int i=0;i<key_len;i++){
+        unsigned char c=*(unsigned char*)(key+i);
+        fprintf(stream,"%hhx%hhx",c>>4,c&0xF);
+    }    
+    
+    fputc('\n',stream);
+    free(key);
+    free(value);
+}
+
+dictionary* exportDictFileKeys(char* dictfilename,char* outputfile){
+    FILE* f;
+    dictionary* d;
+
+    if (outputfile){
+        f=fopen(outputfile,"w");
+        if (!f) return NULL;
+    }else{
+        f=stdout;
+    }
+
+    d=dictionaryOpenExisting(dictfilename);
+
+    dictionaryForEach(d,exportDictKeysCallback,f);
+    fclose(f);
+    return d;
+}
+
 
 int main(int argc,char* argv[]){
     dictionary* d;
     char* inputfile;
-    char buffer[256];
+    char* outputfile;
+    size_t len;
 
     if (argc==1){
         puts("Expected syntax:");
@@ -91,9 +153,9 @@ int main(int argc,char* argv[]){
         if (!strcmp("-G",argv[1])){
             inputfile=argv[2];
 
-            size_t len=strlen(inputfile);
+            len=strlen(inputfile);
 
-            char* outputfile=malloc(len+6);
+            outputfile=malloc(len+6);
             sprintf(outputfile,"%s.dict",inputfile);
             d=generateDictFile(inputfile,outputfile);
             free(outputfile);
@@ -104,16 +166,20 @@ int main(int argc,char* argv[]){
         if (!strcmp("-L",argv[1])){
             inputfile=argv[2];
 
-            d=dictionaryOpenExisting(inputfile);
+            d=readFromDictFile(inputfile,NULL);
+            dictionaryClose(d);
+        }
 
-            fgets(buffer,256,stdin);
-            md5 h;
-            char* result;
+        if (!strcmp("-E",argv[1])){
+            inputfile=argv[2];
 
-            parseHexa(buffer,&h,sizeof(md5));
-            printMD5(&h);
-            dictionaryGet(d,&h,sizeof(md5),(void**)&result,NULL);
-            printf("result=%s\n",result);
+            len=strlen(inputfile);
+
+            outputfile=malloc(len+6);
+            sprintf(outputfile,"%s.keys",inputfile);
+            d=exportDictFileKeys(inputfile,outputfile);
+            free(outputfile);
+
             dictionaryClose(d);
         }
     }

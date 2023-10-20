@@ -17,4 +17,6 @@ void dictionaryGenerateHashTable(dictionary* d);
 
 unsigned dictionaryGetSize(dictionary* d);
 
+void dictionaryForEach(dictionary* d,void (*callback)(void* key,unsigned key_len,void* value,unsigned value_len,void* userdata),void* userdata);
+
 #endif
