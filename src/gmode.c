@@ -38,11 +38,11 @@ void dictionaryGenerateFileThread(dictionary_generation_thread* dgt){
         else len++;
 
         if (dgt->md5){
-            hashMD5(buffer,len,&md5Hash);
+            hashMD5(buffer,len++,&md5Hash);
             dictionarySafeWrite(dgt->dict,&md5Hash,sizeof(md5),buffer,len);
         }
         if (dgt->sha256){
-            hashSHA256(buffer,len,&sha256Hash);
+            hashSHA256(buffer,len++,&sha256Hash);
             dictionarySafeWrite(dgt->dict,&sha256Hash,sizeof(sha256),buffer,len);
         }
         

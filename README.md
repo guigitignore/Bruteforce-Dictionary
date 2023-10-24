@@ -28,6 +28,7 @@ Actual limitations: because I use unsigned 32 bits integer for index in files. T
 Here is a basic layout:
 
 ```
+--------------------------
 |        HEADER          |
 --------------------------
 |uint32 magic            |
@@ -52,7 +53,6 @@ Here is a basic layout:
 | ---------------------- |
 --------------------------
 |      HASH TABLE        |
---------------------------
 --------------------------
 | ---------------------- |
 | |uint32 hash         | | 
