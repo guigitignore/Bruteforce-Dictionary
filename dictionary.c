@@ -289,22 +289,3 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
     if (data) *data=NULL;
     if (data_size) *data_size=0;
 }
-
-void dictionaryForEach(dictionary* d,void (*callback)(void* key,unsigned key_len,void* value,unsigned value_len,void* userdata),void* userdata){
-    dictionary_data_entry de;
-    uint32_t elements=d->header.elements;
-    pthread_mutex_lock(&d->file_mutex);
-    void *key,*value;
-
-    fseek(d->file,sizeof(dictionary_file_header),SEEK_SET);
-
-    for (uint32_t i=0;i<elements;i++){
-        fread(&de,sizeof(dictionary_data_entry),1,d->file);
-        key=malloc(de.key_size);
-        value=malloc(de.value_size);
-        fread(key,de.key_size,1,d->file);
-        fread(value,de.value_size,1,d->file);
-        callback(key,de.key_size,value,de.value_size,userdata);
-    }
-    pthread_mutex_unlock(&d->file_mutex);
-}
