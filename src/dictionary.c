@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <string.h>
 #include "dictionary.h"
@@ -110,7 +109,7 @@ void dictionaryClose(dictionary* d){
         fwrite(d->hash_table,sizeof(dictionary_hash_table_entry),d->header.mask+1,d->file);
 
         //truncate file to not waste disk space.
-        ftruncate(fileno(d->file),ftell(d->file)+1);
+        //ftruncate(fileno(d->file),ftell(d->file)+1);
     }
      
 
