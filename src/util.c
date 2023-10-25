@@ -1,14 +1,6 @@
 #include "util.h"
-#include <openssl/evp.h>
 #include <string.h>
-
-void hashMD5(char* password,size_t len,md5* hash){
-    EVP_Digest (password, len, (unsigned char*)hash, NULL, EVP_md5(), NULL);
-}
-
-void hashSHA256(char* password,size_t len,sha256* hash){
-    EVP_Digest (password, len, (unsigned char*)hash, NULL, EVP_sha256(), NULL);
-}
+#include <stdlib.h>
 
 char* safe_fgets(char* restrict s, int n, FILE* restrict stream,pthread_mutex_t* mutex) {
     char* result;

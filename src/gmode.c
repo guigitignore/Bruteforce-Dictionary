@@ -7,58 +7,69 @@
 #include "dictionary.h"
 #include "util.h"
 #include "timer.h"
+#include <openssl/evp.h>
 
 #define GENERATION_THREAD_NUMBER 4
+#define HASH_MAX_LEN 256
 
 typedef struct{
     FILE* file;
-    pthread_mutex_t mutex;
     dictionary* dict;
-    bool sha256;
-    bool md5;
+    const EVP_MD* algo;
+    pthread_mutex_t mutex;
 }gmode_callback;
 
-void dictionaryGenerateFileThreadCallback(char* line,size_t len, gmode_callback* dgt){
-    md5 md5Hash;
-    sha256 sha256Hash;
+typedef struct{
+    dictionary* dict;
+    const EVP_MD* algo;
+    unsigned char* buffer;
+    unsigned  buffer_len;
+}gmode_thread_callback;
 
-    if (dgt->md5){
-        hashMD5(line,len++,&md5Hash);
-        dictionarySafeWrite(dgt->dict,&md5Hash,sizeof(md5),line,len);
-    }
-    if (dgt->sha256){
-        hashSHA256(line,len++,&sha256Hash);
-        dictionarySafeWrite(dgt->dict,&sha256Hash,sizeof(sha256),line,len);
-    }
+static void dictionaryGenerateFileThreadCallback(char* line,size_t len, gmode_thread_callback* gtc){
+    EVP_Digest(line,len,gtc->buffer,&gtc->buffer_len,gtc->algo,NULL);
+
+    dictionarySafeWrite(gtc->dict,gtc->buffer,gtc->buffer_len,line,++len);
 }
 
-void dictionaryGenerateFileThread(gmode_callback* dgt){
-    fileForEachLine(dgt->file,&dgt->mutex,(void*)dictionaryGenerateFileThreadCallback,dgt);
+static void dictionaryGenerateFileThread(gmode_callback* dgt){
+    gmode_thread_callback gtc;
+
+    gtc.algo=dgt->algo;
+    gtc.dict=dgt->dict;
+    gtc.buffer_len=EVP_MD_get_size(dgt->algo);
+    gtc.buffer=malloc(gtc.buffer_len);
+
+    fileForEachLine(dgt->file,&dgt->mutex,(void*)dictionaryGenerateFileThreadCallback,&gtc);
+
+    free(gtc.buffer);
 }
 
-void generateDictFile(char* filename,bool md5,bool sha256){
+static void generateDictFile(char* filename,const EVP_MD* algo){
     pthread_t threads[GENERATION_THREAD_NUMBER];
+    FILE* finput;
+    char* outputfile;
+    dictionary* d;
+    size_t len;
+    gmode_callback dgt;
 
-    FILE* finput=fopen(filename,"r");
+    finput=fopen(filename,"r");
     
     if (!finput) return;
 
-    size_t len=strlen(filename);
-
-    char* outputfile=malloc(len+6);
-    sprintf(outputfile,"%s.dict",filename);
+    len=strlen(filename)+strlen(EVP_MD_get0_name(algo))+7;
+    outputfile=malloc(len);
+    snprintf(outputfile,len,"%s.%s.dict",filename,EVP_MD_get0_name(algo));
     
-    printft("Creating new dictionary...\n");
+    printft("Creating new dictionary in \"%s\"...\n",outputfile);
 
-    dictionary* d=dictionaryNew(outputfile);
-    gmode_callback dgt;
-
+    d=dictionaryNew(outputfile);
+    
     dgt.dict=d;
     dgt.file=finput;
-    dgt.md5=md5;
-    dgt.sha256=sha256;
+    dgt.algo=algo;
 
-    printft("Hashing passwords in %d threads\n",GENERATION_THREAD_NUMBER);
+    printft("Hashing passwords of \"%s\" in %d threads\n",filename,GENERATION_THREAD_NUMBER);
 
     pthread_mutex_init(&dgt.mutex,NULL);
 
@@ -73,11 +84,11 @@ void generateDictFile(char* filename,bool md5,bool sha256){
     
     pthread_mutex_destroy(&dgt.mutex);
     
-    printft("%d entries has been added in dictionary\n",dictionaryGetSize(d));
-    printft("Generating hash table...\n");
+    printft("%d entries has been added in dictionary \"%s\"\n",dictionaryGetSize(d),outputfile);
+    printft("Generating hash table of \"%s\"...\n",outputfile);
     dictionaryGenerateHashTable(d);
 
-    printft("Finished!\n");
+    printft("Closing \"%s\"...\n",outputfile);
     dictionaryClose(d);
 
     fclose(finput);
@@ -87,47 +98,19 @@ void generateDictFile(char* filename,bool md5,bool sha256){
 }
 
 
-int gmode(int argc,char* argv[]){
-    bool sha256=false;
-    bool md5=false;
+int gmode(int argc,char* argv[],const EVP_MD* algo){
 
     if (argc==0){
         printft("Expected input file\n");
         return EXIT_FAILURE;
     }
 
-    char **files=malloc(sizeof(char*)*argc);
-    size_t nbfiles=0;
+    printft("Using %s algorithm...\n",EVP_MD_get0_name(algo));
 
     for (int i=0;i<argc;i++){
-        if (*argv[i]=='-'){
-            if (!strcmp("md5",argv[i]+1)){
-                md5=true;
-                printft("Using MD5 hash...\n");
-                continue;
-            }
-            if (!strcmp("sha256",argv[i]+1)){
-                sha256=true;
-                printft("Using SHA256 hash...\n");
-                continue;
-            }
-            printft("Unsupported hash algorithm '%s' ! \n",argv[i]+1);
-        }else{
-            files[nbfiles++]=argv[i];
-        }
-
+        generateDictFile(argv[i],algo);
     }
-
-    if (!md5 && !sha256){
-        md5=true;
-        printft("Using MD5 hash by default...\n");
-    }
-
-    for (int i=0;i<nbfiles;i++){
-        generateDictFile(files[i],md5,sha256);
-    }
-
-    free(files);
+    
 
     return EXIT_SUCCESS;
 }

@@ -5,20 +5,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <openssl/evp.h>
+
+const EVP_MD* getHashAlgorithmByName(char* name){
+    if (*name=='\0'){
+        fputs("Using MD5 digest by default...\n",stderr);
+        return EVP_md5();
+    }
+
+    const EVP_MD* algo=EVP_get_digestbyname(name);
+    //default algorithm is md5
+    if (algo) return algo;
+    
+    fprintf(stderr,"Unknown digest algorithm %s\n",name);
+    exit(EXIT_FAILURE);
+}
 
 
 int main(int argc,char* argv[]){
     initTimer();
 
     if (argc>=2){
-        if (!strcmp("G",argv[1])) return gmode(argc-2,argv+2);
-        if (!strcmp("L",argv[1])) return lmode(argc-2,argv+2);
-        if (!strcmp("Tmd5",argv[1])) return tmode(tmodeMD5Callback);
-        if (!strcmp("Tsha256",argv[1])) return tmode(tmodeSHA256Callback);
+        if (*argv[1]=='G') return gmode(argc-2,argv+2,getHashAlgorithmByName(argv[1]+1));
+        if (*argv[1]=='L') return lmode(argc-2,argv+2);
+        if (*argv[1]=='T') return tmode(getHashAlgorithmByName(argv[1]+1));
     }
 
-    puts("Expected syntax:");
-    puts("G <input file>");
-    puts("L <input dictfile>");
+    fputs("Expected syntax:",stderr);
+    fputs("G <input file>",stderr);
+    fputs("G[digest] <input file>",stderr);
+    fputs("L <input dictfile>",stderr);
+    fputs("T",stderr);
+    fputs("T[digest]",stderr);
     return EXIT_FAILURE;
 }

@@ -8,30 +8,36 @@
 #include "util.h"
 
 typedef struct{
-    unsigned key_len;
-    char key[32];
+    unsigned buffer_max_len;
+    unsigned buffer_actual_len;
+    char* buffer;
     char* result;
+    array* dicts;
 }lmode_callback;
 
 
 void readlineCallback(dictionary** d,lmode_callback* lcb){
-    if (!lcb->result) dictionaryGet(*d,lcb->key,lcb->key_len,(void**)&lcb->result,NULL);
+    if (!lcb->result) dictionaryGet(*d,lcb->buffer,lcb->buffer_actual_len,(void**)&lcb->result,NULL);
 }
 
-void readStdinCallback(char* line,size_t len,array* dicts){
-    lmode_callback lcb;
+void readStdinCallback(char* line,size_t len,lmode_callback* lcb){
+    lcb->result=NULL;
+    lcb->buffer_actual_len=len>>1;
 
-    lcb.result=NULL;
-    lcb.key_len=len>>1;
-    parseHexa(line,lcb.key,lcb.key_len);
-
-    arrayForEach(dicts,(void*)readlineCallback,&lcb);
-
-    if (lcb.result){
-        fputs(lcb.result,stdout);
-        free(lcb.result);
+    if (len>lcb->buffer_max_len){
+        lcb->buffer=realloc(lcb->buffer,len);
+        lcb->buffer_max_len=len;
     }
-    putchar('\n');
+
+    parseHexa(line,lcb->buffer,lcb->buffer_actual_len);
+
+    arrayForEach(lcb->dicts,(void*)readlineCallback,lcb);
+
+    if (lcb->result){
+        fputs(lcb->result,stdout);
+        free(lcb->result);
+    }
+    fputc('\n',stdout);
 }
 
 void dictsFreeCallback(dictionary** dict,void* userdata){
@@ -40,25 +46,28 @@ void dictsFreeCallback(dictionary** dict,void* userdata){
 
 int lmode(int argc,char* argv[]){
     dictionary* d;
-    array* dicts;
+    lmode_callback lcb;
 
     if (argc==0){
         printft("Expected inputfile\n");
         return EXIT_FAILURE;
     }
 
-    dicts=arrayNew(sizeof(dictionary*));
+    lcb.dicts=arrayNew(sizeof(dictionary*));
+    lcb.buffer=NULL;
+    lcb.buffer_max_len=0;
 
 
     for (int i=0;i<argc;i++){
         d=dictionaryOpenExisting(argv[i]);
-        if (d) arrayPush(dicts,&d);
+        if (d) arrayPush(lcb.dicts,&d);
     }
 
-    fileForEachLine(stdin,NULL,(void*)readStdinCallback,dicts);
+    fileForEachLine(stdin,NULL,(void*)readStdinCallback,&lcb);
 
-    arrayForEach(dicts,(void*)dictsFreeCallback,NULL);
-    arrayFree(dicts);
+    arrayForEach(lcb.dicts,(void*)dictsFreeCallback,NULL);
+    arrayFree(lcb.dicts);
+    free(lcb.buffer);
 
     return EXIT_SUCCESS;
 }

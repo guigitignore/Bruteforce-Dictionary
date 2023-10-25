@@ -4,21 +4,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void tmodeMD5Callback(char* line,size_t len,FILE* output){
-    md5 md5Hash;
+typedef struct{
+    const EVP_MD* algo;
+    FILE* output;
+    unsigned char* buffer;
+    unsigned buffer_len;
 
-    hashMD5(line,len,&md5Hash);
-    printHexa((unsigned char*)&md5Hash,sizeof(md5),output);
+}tmode_callback;
+
+void tmodeCallback(char* line,size_t len,tmode_callback* tcb){
+    EVP_Digest(line,len,tcb->buffer,&tcb->buffer_len,tcb->algo,NULL);
+    printHexa(tcb->buffer,tcb->buffer_len,tcb->output);
 }
 
-void tmodeSHA256Callback(char* line,size_t len,FILE* output){
-    sha256 sha256Hash;
+int tmode(const EVP_MD* algo){
+    tmode_callback tcb;
 
-    hashSHA256(line,len,&sha256Hash);
-    printHexa((unsigned char*)&sha256Hash,sizeof(sha256),output);
-}
+    tcb.algo=algo;
+    tcb.buffer_len=EVP_MD_get_size(algo);
+    tcb.buffer=malloc(tcb.buffer_len);
+    tcb.output=stdout;
 
-int tmode(void (*tmode_callback)(char* line,size_t len,FILE* output)){
-    fileForEachLine(stdin,NULL,(void*)tmodeMD5Callback,stdout);
+    fileForEachLine(stdin,NULL,(void*)tmodeCallback,&tcb);
+
+    free(tcb.buffer);
     return EXIT_SUCCESS;
 }

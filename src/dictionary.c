@@ -23,6 +23,8 @@ typedef struct{
 
 typedef struct{
     uint8_t key_size;
+    //not used (padding)
+    uint8_t padding;
     uint16_t value_size;
 }dictionary_data_entry;
 
