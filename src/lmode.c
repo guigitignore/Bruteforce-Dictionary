@@ -49,7 +49,7 @@ int lmode(int argc,char* argv[]){
     lmode_callback lcb;
 
     if (argc==0){
-        printft("Expected inputfile\n");
+        printft("Expected input dict file\n");
         return EXIT_FAILURE;
     }
 
@@ -61,9 +61,11 @@ int lmode(int argc,char* argv[]){
     for (int i=0;i<argc;i++){
         d=dictionaryOpenExisting(argv[i]);
         if (d) arrayPush(lcb.dicts,&d);
+        else fprintf(stderr,"\"%s\" is not a valid dict file\n",argv[i]);
     }
 
-    fileForEachLine(stdin,NULL,(void*)readStdinCallback,&lcb);
+    if (arrayGetSize(lcb.dicts)) fileForEachLine(stdin,NULL,(void*)readStdinCallback,&lcb);
+    else fprintf(stderr,"No valid dict files. Aborting...\n");
 
     arrayForEach(lcb.dicts,(void*)dictsFreeCallback,NULL);
     arrayFree(lcb.dicts);

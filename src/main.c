@@ -31,11 +31,11 @@ int main(int argc,char* argv[]){
         if (*argv[1]=='T') return tmode(getDigestByName(argv[1]+1));
     }
 
-    fputs("Expected syntax:",stderr);
-    fputs("G <input file>",stderr);
-    fputs("G[digest] <input file>",stderr);
-    fputs("L <input dictfile>",stderr);
-    fputs("T",stderr);
-    fputs("T[digest]",stderr);
+    fputs("Expected syntax:\n",stderr);
+    fputs("G <input file>\n",stderr);
+    fputs("G[digest] <input file>\n",stderr);
+    fputs("L <input dictfile>\n",stderr);
+    fputs("T\n",stderr);
+    fputs("T[digest]\n",stderr);
     return EXIT_FAILURE;
 }
