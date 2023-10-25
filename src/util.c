@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-char* safe_fgets(char* restrict s, int n, FILE* restrict stream,pthread_mutex_t* mutex) {
+static char* safe_fgets(char* restrict s, int n, FILE* restrict stream,pthread_mutex_t* mutex) {
     char* result;
 
     if (mutex){

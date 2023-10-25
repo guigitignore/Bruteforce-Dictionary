@@ -36,7 +36,7 @@ unsigned arrayGetSize(array* a){
     return (a->current_ptr-a->base_ptr)/a->elt_size;
 }
 
-void arrayResize(array* a){
+static void arrayResize(array* a){
     unsigned total_size,current_size;
 
     total_size=a->end_ptr-a->base_ptr;

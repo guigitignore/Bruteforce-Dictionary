@@ -7,7 +7,7 @@
 #include <string.h>
 #include <openssl/evp.h>
 
-const EVP_MD* getHashAlgorithmByName(char* name){
+static const EVP_MD* getDigestByName(char* name){
     if (*name=='\0'){
         fputs("Using MD5 digest by default...\n",stderr);
         return EVP_md5();
@@ -26,9 +26,9 @@ int main(int argc,char* argv[]){
     initTimer();
 
     if (argc>=2){
-        if (*argv[1]=='G') return gmode(argc-2,argv+2,getHashAlgorithmByName(argv[1]+1));
+        if (*argv[1]=='G') return gmode(argc-2,argv+2,getDigestByName(argv[1]+1));
         if (*argv[1]=='L') return lmode(argc-2,argv+2);
-        if (*argv[1]=='T') return tmode(getHashAlgorithmByName(argv[1]+1));
+        if (*argv[1]=='T') return tmode(getDigestByName(argv[1]+1));
     }
 
     fputs("Expected syntax:",stderr);

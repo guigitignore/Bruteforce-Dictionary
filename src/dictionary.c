@@ -128,7 +128,7 @@ unsigned dictionaryGetSize(dictionary* d){
     return d->header.elements;
 }
 
-uint32_t dictionaryHash(void* data,size_t s){
+static uint32_t dictionaryHash(void* data,size_t s){
     void* end_data=data+s;
     uint32_t hash=0;
 
@@ -140,7 +140,7 @@ uint32_t dictionaryHash(void* data,size_t s){
     return hash;
 }
 
-void dictionaryHashTableInsert(dictionary* d,dictionary_hash_table_entry elt){
+static void dictionaryHashTableInsert(dictionary* d,dictionary_hash_table_entry elt){
     uint32_t mask=d->header.mask;
     uint32_t perturb=elt.hash;
     uint32_t index=elt.hash;
@@ -207,7 +207,7 @@ void dictionaryGenerateHashTable(dictionary* d){
 }
 
 
-void dictionaryWrite(dictionary* d,void* key,unsigned key_size,void* data,unsigned data_size){
+static void dictionaryWrite(dictionary* d,void* key,unsigned key_size,void* data,unsigned data_size){
     dictionary_data_entry de;
     uint32_t hash_table_index;
     

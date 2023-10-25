@@ -16,11 +16,11 @@ typedef struct{
 }lmode_callback;
 
 
-void readlineCallback(dictionary** d,lmode_callback* lcb){
+static void readlineCallback(dictionary** d,lmode_callback* lcb){
     if (!lcb->result) dictionaryGet(*d,lcb->buffer,lcb->buffer_actual_len,(void**)&lcb->result,NULL);
 }
 
-void readStdinCallback(char* line,size_t len,lmode_callback* lcb){
+static void readStdinCallback(char* line,size_t len,lmode_callback* lcb){
     lcb->result=NULL;
     lcb->buffer_actual_len=len>>1;
 
@@ -40,7 +40,7 @@ void readStdinCallback(char* line,size_t len,lmode_callback* lcb){
     fputc('\n',stdout);
 }
 
-void dictsFreeCallback(dictionary** dict,void* userdata){
+static void dictsFreeCallback(dictionary** dict,void* userdata){
     dictionaryClose(*dict);
 }
 

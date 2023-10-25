@@ -12,7 +12,7 @@ typedef struct{
 
 }tmode_callback;
 
-void tmodeCallback(char* line,size_t len,tmode_callback* tcb){
+static void tmodeCallback(char* line,size_t len,tmode_callback* tcb){
     EVP_Digest(line,len,tcb->buffer,&tcb->buffer_len,tcb->algo,NULL);
     printHexa(tcb->buffer,tcb->buffer_len,tcb->output);
 }
