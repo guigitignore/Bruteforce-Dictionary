@@ -23,7 +23,7 @@ typedef struct{
 
 typedef struct{
     uint8_t key_size;
-    uint8_t value_size;
+    uint16_t value_size;
 }dictionary_data_entry;
 
 
@@ -263,7 +263,6 @@ void dictionaryGet(dictionary* d,void* key,unsigned key_size,void** data,unsigne
 
             fread(buffer, de.key_size,1,d->file);
             
-
             if (key_size==de.key_size && !memcmp(buffer,key,key_size)){
                 if (data){
                     *data=malloc(de.value_size);

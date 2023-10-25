@@ -24,10 +24,10 @@ char* safe_fgets(char* restrict s, int n, FILE* restrict stream,pthread_mutex_t*
 }
 
 void fileForEachLine(FILE* f,pthread_mutex_t* mutex,void (*callback)(char* line,size_t len,void* userdata),void* userdata){
-    char buffer[256];
+    char buffer[1024];
     size_t len;
 
-    while (safe_fgets(buffer,256,f,mutex)){
+    while (safe_fgets(buffer,1024,f,mutex)){
         len=strlen(buffer)-1;
         if (buffer[len]=='\n') buffer[len]='\0';
         else len++;

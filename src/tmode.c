@@ -19,6 +19,6 @@ void tmodeSHA256Callback(char* line,size_t len,FILE* output){
 }
 
 int tmode(void (*tmode_callback)(char* line,size_t len,FILE* output)){
-    fileForEachLine(stdin,NULL,tmodeMD5Callback,stdout);
+    fileForEachLine(stdin,NULL,(void*)tmodeMD5Callback,stdout);
     return EXIT_SUCCESS;
 }
