@@ -1,5 +1,6 @@
 **/*.txt
 **/*.dict
+**/*.patch
 .vscode
 main
 build

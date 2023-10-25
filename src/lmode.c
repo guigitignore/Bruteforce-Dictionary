@@ -3,73 +3,62 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dictionary.h"
+#include "timer.h"
+#include "array.h"
+#include "util.h"
 
-void parseHexa(char* buffer,void* output,unsigned output_len){
-    char number[3];
-    number[2]=0;
-    long unsigned result;
-    memset(output,0,output_len);
+typedef struct{
+    unsigned key_len;
+    char key[32];
+    char* result;
+}lmode_callback;
 
-    for (int i=0;(number[0]=*buffer++) && i<output_len;i++){
-        number[1]=*buffer++;
-        result=strtoul(number,NULL,16);
-        *(char*)output++=result;
-        if (!number[1]) break;
-    }
+
+void readlineCallback(dictionary** d,lmode_callback* lcb){
+    if (!lcb->result) dictionaryGet(*d,lcb->key,lcb->key_len,(void**)&lcb->result,NULL);
 }
 
-void readFromDictFile(dictionary** ldict,size_t nbdict){
-    char buffer[256];
-    char hash[32];
-    size_t len;
-    char* result;
+void readStdinCallback(char* line,size_t len,array* dicts){
+    lmode_callback lcb;
 
+    lcb.result=NULL;
+    lcb.key_len=len>>1;
+    parseHexa(line,lcb.key,lcb.key_len);
 
+    arrayForEach(dicts,(void*)readlineCallback,&lcb);
 
-    while (fgets(buffer,256,stdin)){
-        len=strlen(buffer)-1;
-        if (buffer[len]=='\n') buffer[len]='\0';
-        else len++;
-
-        len>>=1;
-        parseHexa(buffer,hash,len);
-
-        for (int i=0;i<nbdict;i++){
-            dictionaryGet(ldict[i],hash,len,(void**)&result,NULL);
-            if (result) break;
-        }
-
-        if (result){
-            puts(result);
-            free(result);
-        }else{
-            puts("<unknown>");
-        }
-        
+    if (lcb.result){
+        fputs(lcb.result,stdout);
+        free(lcb.result);
     }
+    putchar('\n');
+}
 
+void dictsFreeCallback(dictionary** dict,void* userdata){
+    dictionaryClose(*dict);
 }
 
 int lmode(int argc,char* argv[]){
+    dictionary* d;
+    array* dicts;
+
     if (argc==0){
-        puts("Expected inputfile");
+        printft("Expected inputfile\n");
         return EXIT_FAILURE;
     }
 
-    dictionary** ldict=malloc(sizeof(dictionary*)*argc);
-    size_t nbdict=0;
+    dicts=arrayNew(sizeof(dictionary*));
+
 
     for (int i=0;i<argc;i++){
-        ldict[i]=dictionaryOpenExisting(argv[i]);
-        if (ldict[i]) nbdict++;
+        d=dictionaryOpenExisting(argv[i]);
+        if (d) arrayPush(dicts,&d);
     }
 
-    readFromDictFile(ldict,nbdict);
+    fileForEachLine(stdin,NULL,(void*)readStdinCallback,dicts);
 
-    for (int i=0;i<nbdict;i++){
-        dictionaryClose(ldict[i]);
-    }
-    free(ldict);
+    arrayForEach(dicts,(void*)dictsFreeCallback,NULL);
+    arrayFree(dicts);
 
     return EXIT_SUCCESS;
 }

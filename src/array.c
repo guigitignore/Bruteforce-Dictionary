@@ -64,6 +64,8 @@ void arrayClear(array* a){
 }
 
 void arrayFree(array* a){
+    if (!a) return;
+    
     free(a->base_ptr);
     pthread_mutex_destroy(&a->mutex);
     free(a);
