@@ -20,7 +20,22 @@ This program has 2 modes available:
 - __T mode__ is an additional mode for test purposes. It just translate all clear passwords to hash. It supports all openssl algorithms.
   __Example:__ `./main Tmd5 < rockyou.txt > rockyou.md5.txt` or `./main Tsha256 < rockyou.txt > rockyou.md5.txt`
 
-## 3) Dict file format
+## 3) Tests
+
+A quick demonstration is available in the Makefile:
+It consists on 5 steps:
+1) It generates a dict file with the algo you choose
+2) It tranlates all clear passwords to digest in the same order than the original
+3) It reverses all hashes using the dict file
+4) It compares the output produced with the original wordlist
+5) It cleans files produced
+
+Example: `make demo`
+
+You can choose which digest you want by changing algo variable: `make demo algo=SHA256`
+Please note that the algo name must be uppercase
+
+## 4) Dict file format
 
 The dict file is a binary format is designed to store key and values and retrieve them efficiently without having to load the entiere file.
 
@@ -75,3 +90,8 @@ The file is divided in 3 sections:
 1) The header contains properties of file (`magic` to recognize file, `elements` is the number of entry, `hash_table_index` is the position of the hash table in the file and `mask` is the mask to use in hash table)
 2) The Data section contains all key and value. This section is not loaded in memory. We only load key and value when necessary.
 3) The Hash Table section is loaded in memory. It contains a hash and an index for each entry in the data section. The hash function in this case is just a xor of the key bytes.
+
+## 5) Issues
+
+- MD4 causes infine loop due to its weeknesses (2 passwords that are almost equal produces sometime a digest almost equal)
+  My hash function just xor words of the existing hash.

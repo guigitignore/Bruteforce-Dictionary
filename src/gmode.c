@@ -105,6 +105,8 @@ int gmode(int argc,char* argv[],const EVP_MD* algo){
         return EXIT_FAILURE;
     }
 
+    initTimer();
+
     printft("Using %s algorithm...\n",EVP_MD_get0_name(algo));
 
     for (int i=0;i<argc;i++){

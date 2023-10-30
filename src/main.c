@@ -1,7 +1,6 @@
 #include "gmode.h"
 #include "lmode.h"
 #include "tmode.h"
-#include "timer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +22,6 @@ static const EVP_MD* getDigestByName(char* name){
 
 
 int main(int argc,char* argv[]){
-    initTimer();
 
     if (argc>=2){
         if (*argv[1]=='G') return gmode(argc-2,argv+2,getDigestByName(argv[1]+1));

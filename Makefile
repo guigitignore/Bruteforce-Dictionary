@@ -11,6 +11,8 @@ LDFLAGS = -lpthread -lssl -lcrypto
 
 CC=gcc
 
+algo=MD5
+
 # Main target and filename of the executable
 OUT = main
 
@@ -53,12 +55,12 @@ run:
 
 demo: rockyou.txt
 	@echo "Generating dictionary file..."
-	@./$(OUT) Gmd5 $^
-	@echo "Translating all entries of $^ to md5..."
-	@./$(OUT) Tmd5 < $^ > $^.md5.txt
-	@echo "Trying to reverse all hashes of $^.md5.txt..."
-	@./$(OUT) L $^.MD5.dict < $^.md5.txt > $^.orig.txt
+	@./$(OUT) G$(algo) $^
+	@echo "Translating all entries of $^ to $(algo)..."
+	@./$(OUT) T$(algo) < $^ > $^.$(algo).txt
+	@echo "Trying to reverse all hashes of $^.$(algo).txt..."
+	@./$(OUT) L $^.$(algo).dict < $^.$(algo).txt > $^.orig.txt
 	@echo "Comparing result with original wordlist (if nothing is printed, files are identical)..."
 	@diff $^ $^.orig.txt
 	@echo "Cleaning files..."
-	@rm $^.orig.txt $^.md5.txt $^.MD5.dict
+	@rm $^.orig.txt $^.$(algo).txt $^.$(algo).dict
